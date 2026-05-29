@@ -38,6 +38,16 @@ Describe 'ejball-dotnet-package-workflows convention' {
 				Remove-Item -LiteralPath $inputPath -ErrorAction SilentlyContinue
 			}
 		}
+
+		function script:Test-FileEndsWithLineFeed {
+			param(
+				[Parameter(Mandatory = $true)]
+				[string] $Path
+			)
+
+			$bytes = [System.IO.File]::ReadAllBytes($Path)
+			return $bytes.Length -gt 0 -and $bytes[-1] -eq 10
+		}
 	}
 
 	It 'copies the published workflow templates and is idempotent' {
@@ -53,6 +63,7 @@ Describe 'ejball-dotnet-package-workflows convention' {
 				$sourcePath = Join-Path $PSScriptRoot 'files' $workflowName
 				$targetPath = Join-Path $testDirectory '.github' 'workflows' $workflowName
 				(Test-Path -LiteralPath $targetPath) | Should -Be $true
+				(Test-FileEndsWithLineFeed -Path $targetPath) | Should -Be $true
 				(Get-Content -LiteralPath $targetPath -Raw) | Should -Be (Get-Content -LiteralPath $sourcePath -Raw)
 			}
 
@@ -65,6 +76,12 @@ Describe 'ejball-dotnet-package-workflows convention' {
 		finally {
 			# Remove the isolated repository after the test completes.
 			Remove-Item -LiteralPath $testDirectory -Recurse -Force
+		}
+	}
+
+	It 'published workflow templates end with a final line feed' {
+		foreach ($workflowName in $script:workflowNames) {
+			(Test-FileEndsWithLineFeed -Path (Join-Path $PSScriptRoot 'files' $workflowName)) | Should -Be $true
 		}
 	}
 

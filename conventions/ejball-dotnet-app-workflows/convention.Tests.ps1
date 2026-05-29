@@ -40,6 +40,16 @@ Describe 'ejball-dotnet-app-workflows convention' {
 				Remove-Item -LiteralPath $inputPath -ErrorAction SilentlyContinue
 			}
 		}
+
+		function script:Test-FileEndsWithLineFeed {
+			param(
+				[Parameter(Mandatory = $true)]
+				[string] $Path
+			)
+
+			$bytes = [System.IO.File]::ReadAllBytes($Path)
+			return $bytes.Length -gt 0 -and $bytes[-1] -eq 10
+		}
 	}
 
 	It 'copies static workflows, generates release workflow, and is idempotent' {
@@ -52,7 +62,9 @@ Describe 'ejball-dotnet-app-workflows convention' {
 			# Apply the convention and assert the expected workflows exist.
 			InvokeEjballAppWorkflowConvention -TestDirectory $testDirectory
 			foreach ($workflowName in @('apply-repo-conventions.yml', 'ci.yml', 'release.yaml')) {
-				(Test-Path -LiteralPath (Join-Path $testDirectory '.github' 'workflows' $workflowName)) | Should -Be $true
+				$workflowPath = Join-Path $testDirectory '.github' 'workflows' $workflowName
+				(Test-Path -LiteralPath $workflowPath) | Should -Be $true
+				(Test-FileEndsWithLineFeed -Path $workflowPath) | Should -Be $true
 			}
 
 			# Assert the default release workflow uses the repository-name win-x64 path.
@@ -69,6 +81,12 @@ Describe 'ejball-dotnet-app-workflows convention' {
 		finally {
 			# Remove the isolated repository after the test completes.
 			Remove-Item -LiteralPath $testDirectory -Recurse -Force
+		}
+	}
+
+	It 'published workflow templates end with a final line feed' {
+		foreach ($workflowName in @('apply-repo-conventions.yml', 'ci.yml')) {
+			(Test-FileEndsWithLineFeed -Path (Join-Path $PSScriptRoot 'files' $workflowName)) | Should -Be $true
 		}
 	}
 

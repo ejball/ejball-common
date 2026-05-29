@@ -7,6 +7,20 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 
+function Normalize-WorkflowContent {
+	param(
+		[AllowNull()]
+		[string] $Content
+	)
+
+	if ($null -eq $Content) {
+		return $null
+	}
+
+	# Keep workflow writes idempotent by requiring exactly one trailing LF.
+	return ($Content.TrimEnd("`r", "`n") + "`n")
+}
+
 # Copy each published workflow template into the target repository when it differs.
 $workflowNames = @(
 	'apply-repo-conventions.yml',
@@ -22,8 +36,8 @@ $targetDirectory = Join-Path (Get-Location) '.github' 'workflows'
 foreach ($workflowName in $workflowNames) {
 	$sourcePath = Join-Path $PSScriptRoot 'files' $workflowName
 	$targetPath = Join-Path $targetDirectory $workflowName
-	$sourceContent = [System.IO.File]::ReadAllText($sourcePath)
-	$targetContent = if (Test-Path -LiteralPath $targetPath -PathType Leaf) { [System.IO.File]::ReadAllText($targetPath) } else { $null }
+	$sourceContent = Normalize-WorkflowContent ([System.IO.File]::ReadAllText($sourcePath))
+	$targetContent = if (Test-Path -LiteralPath $targetPath -PathType Leaf) { Normalize-WorkflowContent ([System.IO.File]::ReadAllText($targetPath)) } else { $null }
 
 	if ($sourceContent -cne $targetContent) {
 		[System.IO.File]::WriteAllText($targetPath, $sourceContent, $utf8)

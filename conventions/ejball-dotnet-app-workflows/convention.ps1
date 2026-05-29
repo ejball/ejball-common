@@ -7,6 +7,20 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 
+function Normalize-WorkflowContent {
+  param(
+    [AllowNull()]
+    [string] $Content
+  )
+
+  if ($null -eq $Content) {
+    return $null
+  }
+
+  # Keep workflow writes idempotent by requiring exactly one trailing LF.
+  return ($Content.TrimEnd("`r", "`n") + "`n")
+}
+
 # Read convention settings for app release artifact customization.
 $inputData = Get-Content -LiteralPath $args[0] -Raw | ConvertFrom-Json -AsHashtable
 $settings = if ($inputData.ContainsKey('settings') -and $null -ne $inputData['settings']) { $inputData['settings'] } else { @{} }
@@ -20,8 +34,8 @@ $targetDirectory = Join-Path (Get-Location) '.github' 'workflows'
 foreach ($workflowName in @('apply-repo-conventions.yml', 'ci.yml')) {
 	$sourcePath = Join-Path $PSScriptRoot 'files' $workflowName
 	$targetPath = Join-Path $targetDirectory $workflowName
-	$sourceContent = [System.IO.File]::ReadAllText($sourcePath)
-	$targetContent = if (Test-Path -LiteralPath $targetPath -PathType Leaf) { [System.IO.File]::ReadAllText($targetPath) } else { $null }
+  $sourceContent = Normalize-WorkflowContent ([System.IO.File]::ReadAllText($sourcePath))
+  $targetContent = if (Test-Path -LiteralPath $targetPath -PathType Leaf) { Normalize-WorkflowContent ([System.IO.File]::ReadAllText($targetPath)) } else { $null }
 
 	if ($sourceContent -cne $targetContent) {
 		[System.IO.File]::WriteAllText($targetPath, $sourceContent, $utf8)
@@ -68,9 +82,11 @@ jobs:
         files: ./`${{ github.event.repository.name }}.zip
 "@.Replace("`r`n", "`n")
 
+$releaseContent = Normalize-WorkflowContent $releaseContent
+
 # Write the release workflow when the generated content differs.
 $releasePath = Join-Path $targetDirectory 'release.yaml'
-$targetReleaseContent = if (Test-Path -LiteralPath $releasePath -PathType Leaf) { [System.IO.File]::ReadAllText($releasePath) } else { $null }
+$targetReleaseContent = if (Test-Path -LiteralPath $releasePath -PathType Leaf) { Normalize-WorkflowContent ([System.IO.File]::ReadAllText($releasePath)) } else { $null }
 if ($releaseContent -cne $targetReleaseContent) {
 	[System.IO.File]::WriteAllText($releasePath, $releaseContent, $utf8)
 	Write-Host "Updated ejball workflow '.github/workflows/release.yaml'."
